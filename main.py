@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import subprocess
+import sys
 import time
 from typing import Optional
 
@@ -10,27 +11,43 @@ from miservice.minaservice import MiNAService
 from aiohttp import ClientSession
 
 GET_CONVERSATION = "https://userprofile.mina.mi.com/device_profile/v2/conversation?source=dialogu&hardware={hardware}&timestamp={timestamp}&limit=2"
-HARDWARE = "S12"
+HARDWARE = os.environ.get("HARDWARE")
 # micli list to get MI_DID, needed in miio service
-MI_DID = os.environ["MI_DID"]
+MI_DID = os.environ.get("MI_DID")
 # get by mina service device list, needed in cookies to get conversation
-DEVICE_ID = os.environ["DEVICE_ID"]
+DEVICE_ID = os.environ.get("DEVICE_ID")
+
+
+async def list_devices(mina_service: MiNAService):
+    devices = await mina_service.device_list()
+    for device in devices:
+        print("============")
+        print("Name:", device["name"])
+        print("Alias:", device["alias"])
+        print("DeviceID:", device["deviceID"])
+        print("DID:", device["miotDID"])
+        print("Hardware:", device["hardware"])
+        print("SerialNumber:", device["serialNumber"])
 
 
 async def main():
-    print("Waiting for commands")
     session = ClientSession()
     account = MiAccount(
         session,
         os.environ["MI_USER"],
         os.environ["MI_PASS"],
     )
-
+    print("Logging in")
     await account.login("micoapi")
 
     session.cookie_jar.update_cookies({"deviceId": DEVICE_ID})
     mina_service = MiNAService(account)
 
+    if len(sys.argv) > 1 and sys.argv[1] == "devices":
+        await list_devices(mina_service)
+        return
+
+    print("Waiting for commands...")
     last_timestamp = int(time.time() * 1000)
     while True:
         try:

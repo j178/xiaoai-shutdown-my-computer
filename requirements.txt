@@ -1,2 +1,2 @@
-miservice_fork
-aiohttp
+git+https://github.com/blinker-iot/blinker-py.git
+pyautogui

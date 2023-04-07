@@ -1,93 +1,80 @@
 import asyncio
-import json
 import os
+import random
 import subprocess
-import sys
-import time
-from typing import Optional
 
-from miservice.miaccount import MiAccount
-from miservice.minaservice import MiNAService
-from aiohttp import ClientSession
+import pyautogui
+from blinker import Device, ButtonWidget, NumberWidget
+from blinker.voice_assistant import VAType, VoiceAssistant
 
-GET_CONVERSATION = "https://userprofile.mina.mi.com/device_profile/v2/conversation?source=dialogu&hardware={hardware}&timestamp={timestamp}&limit=2"
-HARDWARE = os.environ.get("HARDWARE")
-# micli list to get MI_DID, needed in miio service
-MI_DID = os.environ.get("MI_DID")
-# get by mina service device list, needed in cookies to get conversation
-DEVICE_ID = os.environ.get("DEVICE_ID")
+os.environ["AUTH_KEY"] = '2c19e8b1f0e2'
+device = Device(os.environ["AUTH_KEY"], mi_type=VAType.LIGHT)
 
+voice_assistant = VoiceAssistant(VAType.LIGHT)
 
-async def list_devices(mina_service: MiNAService):
-    devices = await mina_service.device_list()
-    for device in devices:
-        print("============")
-        print("Name:", device["name"])
-        print("Alias:", device["alias"])
-        print("DeviceID:", device["deviceID"])
-        print("DID:", device["miotDID"])
-        print("Hardware:", device["hardware"])
-        print("SerialNumber:", device["serialNumber"])
+btn_shutdown = ButtonWidget('btn-shutdown')
+btn_mute = ButtonWidget('btn-mute')
+num_volume = NumberWidget('num-volume')
+num_brightness = NumberWidget('num-brightness')
+
+device.addVoiceAssistant(voice_assistant)
+device.addWidget(btn_shutdown)
+device.addWidget(btn_mute)
+device.addWidget(num_volume)
+device.addWidget(num_brightness)
 
 
-async def main():
-    session = ClientSession()
-    account = MiAccount(
-        session,
-        os.environ["MI_USER"],
-        os.environ["MI_PASS"],
-    )
-    print("Logging in")
-    await account.login("micoapi")
-
-    session.cookie_jar.update_cookies({"deviceId": DEVICE_ID})
-    mina_service = MiNAService(account)
-
-    if len(sys.argv) > 1 and sys.argv[1] == "devices":
-        await list_devices(mina_service)
-        return
-
-    print("Waiting for commands...")
-    last_timestamp = int(time.time() * 1000)
-    while True:
-        try:
-            question = await poll(session, last_timestamp)
-        except Exception as e:
-            print(f"poll error: {e!r}")
-        else:
-            if question:
-                last_timestamp = question.get("time")
-                query = question.get("query", "").strip()
-                print(f"got query: {query}")
-                await handle_command(query, mina_service)
-        await asyncio.sleep(3)
+async def set_volume(msg):
+    print(f"received volume: {msg}")
 
 
-async def poll(session: ClientSession, last_timestamp: int) -> Optional[dict]:
-    url = GET_CONVERSATION.format(hardware=HARDWARE, timestamp=int(time.time() * 1000))
-    resp = await session.get(url)
-    try:
-        data = await resp.json()
-    except Exception as e:
-        print(f"get conversation failed: {e!r}")
-        return None
-
-    d = json.loads(data["data"])
-    records = d.get("records")
-    if not records:
-        return None
-    if records[0].get("time") > last_timestamp:
-        return records[0]
-    return None
+async def set_brightness(msg):
+    print(f"received brightness: {msg}")
 
 
-async def handle_command(command: str, mina_service: MiNAService):
-    if "关电脑" in command or "关机" in command or "shutdown" in command:
-        await mina_service.player_pause(DEVICE_ID)
-        await mina_service.text_to_speech(DEVICE_ID, "正在关机中...")
-        await asyncio.sleep(1)
-        subprocess.run(["shutdown", "/h"])
+async def mute(msg):
+    print(f"received mute: {msg}")
+    pyautogui.press("mute")
+    await num_volume.value(0).update()
+
+
+async def shutdown(msg):
+    print(f"received shutdown: {msg}")
+    await asyncio.sleep(1)
+    # await device.sendMessage({"": "Shutting down"}, None)
+    subprocess.run(["shutdown", "-h", "now"])
+
+
+async def heartbeat_func(msg):
+    print(f"received heartbeat: {msg}")
+    x = random.randint(0, 100)
+    await num_volume.value(x).update()
+    await num_brightness.value(x).update()
+
+
+async def ready_func():
+    # 获取设备配置信息
+    print(vars(device.config))
+
+
+async def echo(msg):
+    print(f"received voice message: {vars(msg)}")
+
+
+btn_mute.func = mute
+btn_shutdown.func = shutdown
+num_volume.func = set_volume
+num_brightness.func = set_brightness
+device.heartbeat_callable = heartbeat_func
+device.ready_callable = ready_func
+
+voice_assistant.state_query_callable = echo
+voice_assistant.power_change_callable = echo
+voice_assistant.brightness_change_callable = echo
+voice_assistant.mode_change_callable = echo
+voice_assistant.color_change_callable = echo
+voice_assistant.colortemp_change_callable = echo
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    device.run()

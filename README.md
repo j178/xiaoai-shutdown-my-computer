@@ -1,15 +1,23 @@
-# "Xiaoai, shutdown the computer"
+# 用小爱同学控制电脑
 
-```shell
-export MI_USER=xxx
-export MI_PASS=xxx
+## 使用步骤
 
-python3 main.py devices
+1. 搜索下载 "点灯 Blinker" app
+2. 注册并登录，添加设备，选择 "独立设备"，选择网络接入，复制这里的 key
+3. `export AUTH_KEY=xxx` python3 main.py
+4. 这时在点灯 app 中应该可以看到一个在线设备，为它起一个合适的名字，之后会这个名字来控制，我这里取名为 "PC"
+5. 在米家 - 我的 - 连接其他平台 中选择 "点灯科技"，绑定点灯的账号
+6. 选择同步设备，即可将点灯中的设备同步到米家，现在就可以通过小爱同学来控制你的电脑了
 
-# Get from previous output
-export HARDWARE=xxx
-export DEVICE_ID=xxx
+## 指令
 
-# Starts to listen for commands
-python3 main.py
-```
+因为原理是将这台电脑模拟为一个台灯，用小爱同学控制它。所以可以通过小爱同学来控制开关、调节模式、控制色温
+
+1. 关机："小爱同学，将 PC 关机"
+2. 静音："小爱同学，将 PC 设为夜间模式"
+3. 取消静音："小爱同学，将 PC 设为日光模式"
+4. 调节音量: "小爱同学，将 PC 的色温调到 5000" (色温的范围是 1000-10000，对应音量从0-100)
+
+## 已知问题
+
+目前 blinker 的 SDK 在收到小爱同学的请求时，回复指令的执行结果时会有问题，导致小爱同学总是会回复 "要操作的设备好像出问题了"，但实际上操作时成功的。
